@@ -14,6 +14,6 @@ This library only requires working versions of Python, Numpy and Matplotlib.
 
 Cplotlib is a header-only library, meaning you only have to copy the file `cplotlib.h` into your C project and including it. Your C project must also be linked to `libpython` and must include `Python.h`.
 
-# Example
+## Example
 
 We provide an example C code using Cplotlib to plot a sinewave. We also provide a `Makefile` that compiles the example.
