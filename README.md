@@ -4,7 +4,7 @@ A plotting library for C, using Matplotlib as backend.
 
 ## Introduction
 
-Matplotlib is the current standard of data visualization today. What if we could use Matplotlib from C? Cplotlib is a header-only library that enables that. The library generates a Python code containing the C data, and then evokes a Python interpreter that runs the code.
+Matplotlib is the current standard of scientific data visualization today. What if we could use Matplotlib from C? Cplotlib is a header-only library that enables that. The library generates a Python code containing the C data, and then evokes a Python interpreter that runs the code.
 
 ## Requirements
 
