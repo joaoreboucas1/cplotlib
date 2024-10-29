@@ -79,7 +79,7 @@ int declare_array(float* x, size_t x_len, const char* ident)
 	return _SUCCESS_;
 }
 
-int _cpl_plot(float* x, size_t len_x, float* y, size_t len_y)
+int _cpl_plot(float* x, size_t len_x, float* y, size_t len_y, const char* kwargs)
 {
 	if (program_count == 0) append_cmd(preamble);
 	if (len_x != len_y) {
@@ -97,7 +97,9 @@ int _cpl_plot(float* x, size_t len_x, float* y, size_t len_y)
 		printf("ERROR: could not allocate array into command.\n");
 		exit(1);
 	}
-	const char* epilog = "plt.plot(x, y)\n";
+	const size_t kwargs_size = strlen(kwargs);
+	char epilog[kwargs_size + 17];
+	sprintf(epilog, "plt.plot(x, y, %s)\n", kwargs);
 	append_cmd(epilog);
 	return _SUCCESS_;
 }
@@ -123,6 +125,11 @@ void cpl_show()
 	append_cmd("plt.show()\n");
 	exec_program();
 	reset_program();
+}
+
+void cpl_legend()
+{
+	append_cmd("plt.legend()\n");
 }
 
 void cpl_grid()
