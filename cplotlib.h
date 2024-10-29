@@ -104,6 +104,54 @@ int _cpl_plot(float* x, size_t len_x, float* y, size_t len_y, const char* kwargs
 	return _SUCCESS_;
 }
 
+int _cpl_loglog(float* x, size_t len_x, float* y, size_t len_y, const char* kwargs)
+{
+	if (program_count == 0) append_cmd(preamble);
+	if (len_x != len_y) {
+		printf("ERROR: plotting arrays of different lengths.\n");
+		return _ERROR_;
+	}
+	
+	int error = declare_array(x, len_x, "x");
+	if (error) {
+		printf("ERROR: could not allocate array into command.\n");
+		exit(1);
+	}
+	int error2 = declare_array(y, len_y, "y");
+	if (error2) {
+		printf("ERROR: could not allocate array into command.\n");
+		exit(1);
+	}
+	const size_t kwargs_size = strlen(kwargs);
+	char epilog[kwargs_size + 17];
+	sprintf(epilog, "plt.loglog(x, y, %s)\n", kwargs);
+	append_cmd(epilog);
+	return _SUCCESS_;
+}
+
+void cpl_fill_between(float* x, float* y1, float* y2, size_t len_y, const char* kwargs)
+{
+	(void) &x;
+	const size_t kwargs_size = strlen(kwargs);
+	char epilog[kwargs_size + 50];
+	if (len_y == 1) {
+		sprintf(epilog, "plt.fill_between(x, %f, %f, %s)\n", *y1, *y2, kwargs);
+	} else {
+		int error = declare_array(y1, len_y, "y1");
+		if (error) {
+			printf("ERROR: could not allocate array into command.\n");
+			exit(1);
+		}
+		error = declare_array(y2, len_y, "y2");
+		if (error) {
+			printf("ERROR: could not allocate array into command.\n");
+			exit(1);
+		}
+		sprintf(epilog, "plt.fill_between(x, y1, y2, %s)\n", kwargs);
+	}
+	append_cmd(epilog);
+}
+
 void cpl_xlabel(const char* xlabel)
 {
 	const size_t xlabel_size = strlen(xlabel);
