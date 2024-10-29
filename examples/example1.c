@@ -15,9 +15,10 @@ int main()
 		x[i] = x_min + i*dx;
 		y[i] = expf(-x[i]*x[i]);
     }
-    cpl_figure();
     _cpl_plot(x, N, y, N);
-    cpl_show();
+    cpl_xlabel("$x$");
+    cpl_ylabel("$y$");
+    cpl_savefig("plot.pdf");
 	
     return 0;
 }

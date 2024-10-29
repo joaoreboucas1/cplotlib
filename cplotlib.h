@@ -10,6 +10,21 @@
 char program[PROGRAM_CAPACITY];
 size_t program_count = 0;
 
+
+static inline void print_program() 
+{
+	// Prints the program for debug purposes
+	printf("%s\n", program);
+}
+
+void exec_program()
+{
+	// Executes a string as a Python program
+	Py_Initialize();
+	PyRun_SimpleString(program);
+	Py_Finalize();
+}
+
 static inline int append_cmd(const char* command)
 {
 	// This function accumulates strings into `program`
@@ -25,21 +40,12 @@ import numpy as np\n\
 import matplotlib.pyplot as plt\n\
 ";
 
-static inline void flush_program()
+static inline void reset_program()
 {
 	// Resets the program state to only the preamble
 	program[0] = '\0';
 	program_count = 0;
 	append_cmd(preamble);
-}
-
-
-void exec_pycode(const char* code)
-{
-	// Executes a string as a Python program
-	Py_Initialize();
-	PyRun_SimpleString(code);
-	Py_Finalize();
 }
 
 int declare_array(float* x, size_t x_len, const char* ident)
@@ -73,13 +79,9 @@ int declare_array(float* x, size_t x_len, const char* ident)
 	return _SUCCESS_;
 }
 
-int cpl_figure()
-{
-	return append_cmd(preamble);
-}
-
 int _cpl_plot(float* x, size_t len_x, float* y, size_t len_y)
 {
+	if (program_count == 0) append_cmd(preamble);
 	if (len_x != len_y) {
 		printf("ERROR: plotting arrays of different lengths.\n");
 		return _ERROR_;
@@ -100,20 +102,40 @@ int _cpl_plot(float* x, size_t len_x, float* y, size_t len_y)
 	return _SUCCESS_;
 }
 
+void cpl_xlabel(const char* xlabel)
+{
+	const size_t xlabel_size = strlen(xlabel);
+	char xlabel_cmd[xlabel_size + 13];
+	sprintf(xlabel_cmd, "plt.xlabel('%s')\n", xlabel);
+	append_cmd(xlabel_cmd);
+}
+
+void cpl_ylabel(const char* ylabel)
+{
+	const size_t ylabel_size = strlen(ylabel);
+	char ylabel_cmd[ylabel_size + 13];
+	sprintf(ylabel_cmd, "plt.ylabel('%s')\n", ylabel);
+	append_cmd(ylabel_cmd);
+}
+
 void cpl_show()
 {
 	append_cmd("plt.show()\n");
-	exec_pycode(program);
-	flush_program();
+	exec_program();
+	reset_program();
+}
+
+void cpl_grid()
+{
+	append_cmd("plt.grid()\n");
 }
 
 void cpl_savefig(const char* filename)
 {
 	const size_t filename_size = strlen(filename);
 	char save_cmd[filename_size + 15];
-	sprintf("plt.savefig(%s)\n", "%s", filename);
+	sprintf(save_cmd, "plt.savefig('%s')\n", filename);
 	append_cmd(save_cmd);
-	exec_pycode(program);
-	flush_program();
+	exec_program();
+	reset_program();
 }
-#define cpl_plot(x, y) _cpl_plot((x), cpl_len((x)), (y), cpl_len((y)))
