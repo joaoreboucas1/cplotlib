@@ -3,12 +3,6 @@
 #include <math.h>
 #include "cplotlib.h"
 
-typedef struct {
-  float alpha;
-  const char* ls;
-  const char* color;
-} Style;
-
 int main()
 {
     const size_t N = 150;
