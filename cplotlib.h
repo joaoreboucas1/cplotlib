@@ -12,7 +12,6 @@
 char program[PROGRAM_CAPACITY];
 size_t program_count = 0;
 
-
 static inline void print_program() 
 {
 	// Prints the program for debug purposes
@@ -50,11 +49,33 @@ static inline void reset_program()
 	append_cmd(preamble);
 }
 
-int declare_array(float* x, size_t x_len, const char* ident)
+typedef struct {
+	float* p;
+	const char* ident;
+} cpl_array;
+#define ARRAY_CAPACITY 20
+cpl_array arrays[ARRAY_CAPACITY];
+size_t array_count;
+
+static inline size_t get_array_index(float* p)
+{
+	for (size_t i = 0; i < array_count; i++) {
+		if (arrays[i].p == p) return i;
+	}
+	return 0;
+}
+
+int declare_array(float* x, size_t x_len)
 {
 	// Constructs the command `ident = np.array([x[0], x[1], ...])`.
 	// This Python line declares a Numpy array from the values in your C array.
 	// Also appends the command into the program.
+	for (size_t i = 0; i < array_count; i++) {
+		float* p = arrays[i].p;
+		if (x == p) return _SUCCESS_;
+	}
+	char ident[10];
+	sprintf(ident, "x%zu", array_count);
 	const char* prefix = " = np.array([";
 	const char* suffix = "])\n";
 	// Format .4g => 2.3412e-12\w, => 12 characters
@@ -77,6 +98,8 @@ int declare_array(float* x, size_t x_len, const char* ident)
 	append_cmd(prefix);
 	append_cmd(values);
 	append_cmd(suffix);
+	arrays[array_count] = (cpl_array) { .p = x, .ident = ident };
+	array_count += 1;
 	// free(values);
 	return _SUCCESS_;
 }
@@ -89,19 +112,26 @@ int _cpl_plot(float* x, size_t len_x, float* y, size_t len_y, const char* kwargs
 		return _ERROR_;
 	}
 	
-	int error = declare_array(x, len_x, "x");
+	int error = declare_array(x, len_x);
 	if (error) {
 		printf("ERROR: could not allocate array into command.\n");
 		exit(1);
 	}
-	int error2 = declare_array(y, len_y, "y");
+	int error2 = declare_array(y, len_y);
 	if (error2) {
 		printf("ERROR: could not allocate array into command.\n");
 		exit(1);
 	}
+	size_t index_x = get_array_index(x);
+	size_t index_y = get_array_index(y);
+	char ident_x[12];
+	char ident_y[12];
+	sprintf(ident_x, "x%zu", index_x);
+	sprintf(ident_y, "x%zu", index_y);
+
 	const size_t kwargs_size = strlen(kwargs);
 	char epilog[kwargs_size + 17];
-	sprintf(epilog, "plt.plot(x, y, %s)\n", kwargs);
+	sprintf(epilog, "plt.plot(%s, %s, %s)\n", ident_x, ident_y, kwargs);
 	append_cmd(epilog);
 	return _SUCCESS_;
 }
@@ -114,19 +144,26 @@ int _cpl_loglog(float* x, size_t len_x, float* y, size_t len_y, const char* kwar
 		return _ERROR_;
 	}
 	
-	int error = declare_array(x, len_x, "x");
+	int error = declare_array(x, len_x);
 	if (error) {
 		printf("ERROR: could not allocate array into command.\n");
 		exit(1);
 	}
-	int error2 = declare_array(y, len_y, "y");
+	int error2 = declare_array(y, len_y);
 	if (error2) {
 		printf("ERROR: could not allocate array into command.\n");
 		exit(1);
 	}
+	size_t index_x = get_array_index(x);
+	size_t index_y = get_array_index(y);
+	char ident_x[12];
+	char ident_y[12];
+	sprintf(ident_x, "x%zu", index_x);
+	sprintf(ident_y, "x%zu", index_y);
+
 	const size_t kwargs_size = strlen(kwargs);
 	char epilog[kwargs_size + 17];
-	sprintf(epilog, "plt.loglog(x, y, %s)\n", kwargs);
+	sprintf(epilog, "plt.loglog(%s, %s, %s)\n", ident_x, ident_y, kwargs);
 	append_cmd(epilog);
 	return _SUCCESS_;
 }
@@ -138,6 +175,10 @@ void _cpl_fill_between(float* x, size_t len_x, float* y1, size_t len_y1, float* 
 	(void) &x;
 	const size_t kwargs_size = strlen(kwargs);
 	char epilog[kwargs_size + 50];
+
+	size_t index_x = get_array_index(x);
+	char ident_x[12];
+	sprintf(ident_x, "x%zu", index_x);
 	
 	if (len_y1 != len_y2) {
 		printf("ERROR: in fill_between, arrays must have the same length, but y1 has length %zu and y2 has length %zu\n", len_y1, len_y2);
@@ -145,23 +186,29 @@ void _cpl_fill_between(float* x, size_t len_x, float* y1, size_t len_y1, float* 
 	}
 
 	if (len_y1 == 1) {
-		sprintf(epilog, "plt.fill_between(x, %f, %f, %s)\n", *y1, *y2, kwargs);
+		sprintf(epilog, "plt.fill_between(%s, %f, %f, %s)\n", ident_x, *y1, *y2, kwargs);
 	} else {
 		if (len_y1 != len_x) {
 			printf("ERROR: in fill_between, if y1 and y2 are arrays, then all arrays must have the same length, but x has length %zu, y1 has length %zu and y2 has length %zu\n", len_x, len_y1, len_y2);
 			exit(1);
 		}
-		int error = declare_array(y1, len_y1, "y1");
+		int error = declare_array(y1, len_y1);
 		if (error) {
 			printf("ERROR: could not allocate array into command.\n");
 			exit(1);
 		}
-		error = declare_array(y2, len_y2, "y2");
+		error = declare_array(y2, len_y2);
 		if (error) {
 			printf("ERROR: could not allocate array into command.\n");
 			exit(1);
 		}
-		sprintf(epilog, "plt.fill_between(x, y1, y2, %s)\n", kwargs);
+		size_t index_y1 = get_array_index(y1);
+		size_t index_y2 = get_array_index(y2);
+		char ident_y1[12];
+		char ident_y2[12];
+		sprintf(ident_y1, "x%zu", index_y1);
+		sprintf(ident_y2, "x%zu", index_y2);
+		sprintf(epilog, "plt.fill_between(%s, %s, %s, %s)\n", ident_x, ident_y1, ident_y2, kwargs);
 	}
 	append_cmd(epilog);
 }

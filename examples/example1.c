@@ -15,7 +15,7 @@ int main()
     for (size_t i = 0; i < N; i++) {
         x[i] = x_min + i*dx;
         y[i] = x[i]*x[i];
-        z[i] = expf(x[i]);
+        z[i] = expf(pow(sinf(x[i]), 2));
     }
     cpl_loglog(x, y, "color='tab:green', ls='--', label='Data 1'");
     cpl_loglog(x, z, "color='tab:blue', ls='--', label='Data 2'");

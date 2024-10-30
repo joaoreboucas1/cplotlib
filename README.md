@@ -12,7 +12,7 @@ This library only requires working versions of Python, Numpy and Matplotlib.
 
 ## Using Cplotlib
 
-Cplotlib is a header-only library, meaning you only have to copy the file `cplotlib.h` into your C project and including it. Your C project must also be linked to `libpython` and must include `Python.h`.
+Cplotlib is a header-only library, meaning you only have to copy the file `cplotlib.h` into your C project and including it. Your C project must also be linked to `libpython` and must include `Python.h`, so point the compiler to those when compiling your C project.
 
 Most of the `plt` functions have Cplotlib counterparts, such as `cpl_plot` which calls `plt.plot` under the hood. Some functions have `kwargs` which enable configuring the plot style (color, linestyle, line width, alpha...).
 
