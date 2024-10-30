@@ -168,6 +168,28 @@ void cpl_ylabel(const char* ylabel)
 	append_cmd(ylabel_cmd);
 }
 
+void cpl_title(const char* title)
+{
+	const size_t title_size = strlen(title);
+	char title_cmd[title_size + 13];
+	sprintf(title_cmd, "plt.title('%s')\n", title);
+	append_cmd(title_cmd);
+}
+
+void cpl_xlim(float x1, float x2)
+{
+	char xlim_cmd[35];
+	sprintf(xlim_cmd, "plt.xlim([%f, %f])\n", x1, x2);
+	append_cmd(xlim_cmd);
+}
+
+void cpl_ylim(float y1, float y2)
+{
+	char ylim_cmd[35];
+	sprintf(ylim_cmd, "plt.ylim([%f, %f])\n", y1, y2);
+	append_cmd(ylim_cmd);
+}
+
 void cpl_show()
 {
 	append_cmd("plt.show()\n");
