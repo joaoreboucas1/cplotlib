@@ -51,18 +51,18 @@ static inline void reset_program()
 
 typedef struct {
 	float* p;
-	const char* ident;
+	char ident[5];
 } cpl_array;
 #define ARRAY_CAPACITY 20
 cpl_array arrays[ARRAY_CAPACITY];
 size_t array_count;
 
-static inline size_t get_array_index(float* p)
+static inline char* get_array_ident(float* p)
 {
 	for (size_t i = 0; i < array_count; i++) {
-		if (arrays[i].p == p) return i;
+		if (arrays[i].p == p) return arrays[i].ident;
 	}
-	return 0;
+	return NULL;
 }
 
 int declare_array(float* x, size_t x_len)
@@ -98,7 +98,8 @@ int declare_array(float* x, size_t x_len)
 	append_cmd(prefix);
 	append_cmd(values);
 	append_cmd(suffix);
-	arrays[array_count] = (cpl_array) { .p = x, .ident = ident };
+	arrays[array_count].p = x;
+	strcpy(arrays[array_count].ident, ident);
 	array_count += 1;
 	// free(values);
 	return _SUCCESS_;
@@ -122,13 +123,9 @@ int _cpl_plot(float* x, size_t len_x, float* y, size_t len_y, const char* kwargs
 		printf("ERROR: could not allocate array into command.\n");
 		exit(1);
 	}
-	size_t index_x = get_array_index(x);
-	size_t index_y = get_array_index(y);
-	char ident_x[12];
-	char ident_y[12];
-	sprintf(ident_x, "x%zu", index_x);
-	sprintf(ident_y, "x%zu", index_y);
-
+	const char* ident_x = get_array_ident(x);
+	const char* ident_y = get_array_ident(y);
+	
 	const size_t kwargs_size = strlen(kwargs);
 	char epilog[kwargs_size + 17];
 	sprintf(epilog, "plt.plot(%s, %s, %s)\n", ident_x, ident_y, kwargs);
@@ -154,12 +151,8 @@ int _cpl_loglog(float* x, size_t len_x, float* y, size_t len_y, const char* kwar
 		printf("ERROR: could not allocate array into command.\n");
 		exit(1);
 	}
-	size_t index_x = get_array_index(x);
-	size_t index_y = get_array_index(y);
-	char ident_x[12];
-	char ident_y[12];
-	sprintf(ident_x, "x%zu", index_x);
-	sprintf(ident_y, "x%zu", index_y);
+	const char* ident_x = get_array_ident(x);
+	const char* ident_y = get_array_ident(y);
 
 	const size_t kwargs_size = strlen(kwargs);
 	char epilog[kwargs_size + 17];
@@ -172,13 +165,10 @@ int _cpl_loglog(float* x, size_t len_x, float* y, size_t len_y, const char* kwar
 
 void _cpl_fill_between(float* x, size_t len_x, float* y1, size_t len_y1, float* y2, size_t len_y2, const char* kwargs)
 {
-	(void) &x;
 	const size_t kwargs_size = strlen(kwargs);
 	char epilog[kwargs_size + 50];
 
-	size_t index_x = get_array_index(x);
-	char ident_x[12];
-	sprintf(ident_x, "x%zu", index_x);
+	const char* ident_x = get_array_ident(x);
 	
 	if (len_y1 != len_y2) {
 		printf("ERROR: in fill_between, arrays must have the same length, but y1 has length %zu and y2 has length %zu\n", len_y1, len_y2);
@@ -202,12 +192,9 @@ void _cpl_fill_between(float* x, size_t len_x, float* y1, size_t len_y1, float* 
 			printf("ERROR: could not allocate array into command.\n");
 			exit(1);
 		}
-		size_t index_y1 = get_array_index(y1);
-		size_t index_y2 = get_array_index(y2);
-		char ident_y1[12];
-		char ident_y2[12];
-		sprintf(ident_y1, "x%zu", index_y1);
-		sprintf(ident_y2, "x%zu", index_y2);
+		const char* ident_y1 = get_array_ident(y1);
+		const char* ident_y2 = get_array_ident(y2);
+		
 		sprintf(epilog, "plt.fill_between(%s, %s, %s, %s)\n", ident_x, ident_y1, ident_y2, kwargs);
 	}
 	append_cmd(epilog);
@@ -275,6 +262,7 @@ void cpl_savefig(const char* filename)
 	char save_cmd[filename_size + 15];
 	sprintf(save_cmd, "plt.savefig('%s')\n", filename);
 	append_cmd(save_cmd);
+	print_program();
 	exec_program();
 	reset_program();
 }
