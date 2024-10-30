@@ -16,8 +16,8 @@ Cplotlib is a header-only library, meaning you only have to copy the file `cplot
 
 Most of the `plt` functions have Cplotlib counterparts, such as `cpl_plot` which calls `plt.plot` under the hood. Some functions have `kwargs` which enable configuring the plot style (color, linestyle, line width, alpha...).
 
-To control the Python program, the library uses the functions `append_cmd`, `declare_array` and `exec_program`. If you want more control over the Python program, you can use these commands directly.
+To control the Python program, the library uses the functions `append_cmd`, which appends a string to the Python program, `declare_array`, which takes a C array and writes it as a Numpy array literal in the Python program, and `exec_program`, which runs the Python program. If you want more control over the Python program, you can use these commands directly.
 
 ## Example
 
-We provide an example C code using Cplotlib to plot a sinewave. We also provide a `Makefile` that compiles the example.
+We provide an example C code using Cplotlib to plot some arbitrary data. We also provide a `Makefile` that compiles the example.

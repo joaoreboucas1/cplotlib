@@ -5,6 +5,8 @@
 #define _SUCCESS_ 0
 #define _ERROR_ 1
 
+#define ARRAY_LEN(x) sizeof((x))/sizeof((x)[0])
+
 // Program is a string that accumulates Python code
 #define PROGRAM_CAPACITY 10000
 char program[PROGRAM_CAPACITY];
@@ -128,21 +130,33 @@ int _cpl_loglog(float* x, size_t len_x, float* y, size_t len_y, const char* kwar
 	append_cmd(epilog);
 	return _SUCCESS_;
 }
+#define cpl_plot(x, y, kwargs) _cpl_plot(x, ARRAY_LEN((x)), y, ARRAY_LEN((y)), kwargs)
+#define cpl_loglog(x, y, kwargs) _cpl_loglog(x, ARRAY_LEN((x)), y, ARRAY_LEN((y)), kwargs)
 
-void cpl_fill_between(float* x, float* y1, float* y2, size_t len_y, const char* kwargs)
+void _cpl_fill_between(float* x, size_t len_x, float* y1, size_t len_y1, float* y2, size_t len_y2, const char* kwargs)
 {
 	(void) &x;
 	const size_t kwargs_size = strlen(kwargs);
 	char epilog[kwargs_size + 50];
-	if (len_y == 1) {
+	
+	if (len_y1 != len_y2) {
+		printf("ERROR: in fill_between, arrays must have the same length, but y1 has length %zu and y2 has length %zu\n", len_y1, len_y2);
+		exit(1);
+	}
+
+	if (len_y1 == 1) {
 		sprintf(epilog, "plt.fill_between(x, %f, %f, %s)\n", *y1, *y2, kwargs);
 	} else {
-		int error = declare_array(y1, len_y, "y1");
+		if (len_y1 != len_x) {
+			printf("ERROR: in fill_between, if y1 and y2 are arrays, then all arrays must have the same length, but x has length %zu, y1 has length %zu and y2 has length %zu\n", len_x, len_y1, len_y2);
+			exit(1);
+		}
+		int error = declare_array(y1, len_y1, "y1");
 		if (error) {
 			printf("ERROR: could not allocate array into command.\n");
 			exit(1);
 		}
-		error = declare_array(y2, len_y, "y2");
+		error = declare_array(y2, len_y2, "y2");
 		if (error) {
 			printf("ERROR: could not allocate array into command.\n");
 			exit(1);
@@ -151,6 +165,7 @@ void cpl_fill_between(float* x, float* y1, float* y2, size_t len_y, const char* 
 	}
 	append_cmd(epilog);
 }
+#define cpl_fill_between(x, y1, y2, kwargs) _cpl_fill_between((x), ARRAY_LEN((x)), (y1), ARRAY_LEN((y1)), (y2), ARRAY_LEN((y2)), kwargs)
 
 void cpl_xlabel(const char* xlabel)
 {
