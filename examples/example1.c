@@ -6,12 +6,12 @@
 
 int main()
 {
-    const size_t N = 150;
+    const size_t N = 200;
     float x[N];
     float y[N];
     float z[N];
     const float x_min = 1.0f;
-    const float x_max = 10.0f;
+    const float x_max = 40.0f;
     const float dx = (x_max - x_min)/N;
     for (size_t i = 0; i < N; i++) {
         x[i] = x_min + i*dx;
@@ -25,8 +25,9 @@ int main()
     float y_1[1] = {1.0};
     float y_2[1] = {10.0};
     cpl_fill_between(x, y_1, y_2, "color='gray', alpha=0.6");
+    cpl_fill_between(x, y, z, "color='tab:red', alpha=0.4");
     cpl_title("Hello from C!");
-    cpl_xlim(1.0f, 10.0f);
+    cpl_xlim(x[0], x[N-1]);
     cpl_ylim(0.1f, 1e5f);
     cpl_legend();
     cpl_grid();
