@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
+#define CPLOTLIB_IMPLEMENTATION
 #include "cplotlib.h"
 
 int main()

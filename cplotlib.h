@@ -1,16 +1,59 @@
+#ifndef CPLOTLIB_H_
+#define CPLOTLIB_H_
+
 #include <Python.h>
 #include <stdlib.h>
 #include <string.h>
 
+#define CPLOTLIB_API
+
+#define CPL_ARRAY_LEN(x) sizeof((x))/sizeof((x)[0])
+CPLOTLIB_API static inline void print_program();
+CPLOTLIB_API void exec_program();
+CPLOTLIB_API static inline int append_cmd(const char* command);
+CPLOTLIB_API static inline void reset_program();
+CPLOTLIB_API static inline char* get_array_ident(float* p);
+CPLOTLIB_API int declare_array(float* x, size_t x_len);
+int _cpl_plot(float* x, size_t len_x, float* y, size_t len_y, const char* kwargs);
+int _cpl_loglog(float* x, size_t len_x, float* y, size_t len_y, const char* kwargs);
+void _cpl_fill_between(float* x, size_t len_x, float* y1, size_t len_y1, float* y2, size_t len_y2, const char* kwargs);
+#define cpl_plot(x, y, kwargs) _cpl_plot(x, CPL_ARRAY_LEN((x)), y, CPL_ARRAY_LEN((y)), kwargs);
+#define cpl_loglog(x, y, kwargs) _cpl_loglog(x, CPL_ARRAY_LEN((x)), y, CPL_ARRAY_LEN((y)), kwargs);
+#define cpl_fill_between(x, y1, y2, kwargs) _cpl_fill_between((x), CPL_ARRAY_LEN((x)), (y1), CPL_ARRAY_LEN((y1)), (y2), CPL_ARRAY_LEN((y2)), kwargs)
+CPLOTLIB_API void cpl_xlabel(const char* xlabel);
+CPLOTLIB_API void cpl_ylabel(const char* ylabel);
+CPLOTLIB_API void cpl_title(const char* title);
+CPLOTLIB_API void cpl_xlim(float x1, float x2);
+CPLOTLIB_API void cpl_ylim(float y1, float y2);
+CPLOTLIB_API void cpl_show();
+CPLOTLIB_API void cpl_savefig();
+CPLOTLIB_API void cpl_grid();
+CPLOTLIB_API void cpl_legend();
+
+#ifdef CPLOTLIB_IMPLEMENTATION
+
 #define _SUCCESS_ 0
 #define _ERROR_ 1
 
-#define ARRAY_LEN(x) sizeof((x))/sizeof((x)[0])
 
 // Program is a string that accumulates Python code
 #define PROGRAM_CAPACITY 10000
 char program[PROGRAM_CAPACITY];
 size_t program_count = 0;
+
+typedef struct {
+	float* p;
+	char ident[5];
+} cpl_array;
+#define ARRAY_CAPACITY 20
+cpl_array arrays[ARRAY_CAPACITY];
+size_t array_count;
+
+const char* preamble = "\
+import numpy as np\n\
+import matplotlib.pyplot as plt\n\
+";
+
 
 static inline void print_program() 
 {
@@ -30,32 +73,23 @@ static inline int append_cmd(const char* command)
 {
 	// This function accumulates strings into `program`
 	const size_t cmd_len = strlen(command);
-	if (program_count + cmd_len > PROGRAM_CAPACITY) return _ERROR_;
+	if (program_count + cmd_len > PROGRAM_CAPACITY) {
+		printf("ERROR: could not append string `%s` into the program.\n", command);
+		return _ERROR_;
+	}
 	strcat(program, command);
 	program_count += strlen(command);
 	return _SUCCESS_;
 }
-
-const char* preamble = "\
-import numpy as np\n\
-import matplotlib.pyplot as plt\n\
-";
 
 static inline void reset_program()
 {
 	// Resets the program state to only the preamble
 	program[0] = '\0';
 	program_count = 0;
+	array_count = 0;
 	append_cmd(preamble);
 }
-
-typedef struct {
-	float* p;
-	char ident[5];
-} cpl_array;
-#define ARRAY_CAPACITY 20
-cpl_array arrays[ARRAY_CAPACITY];
-size_t array_count;
 
 static inline char* get_array_ident(float* p)
 {
@@ -78,8 +112,8 @@ int declare_array(float* x, size_t x_len)
 	sprintf(ident, "x%zu", array_count);
 	const char* prefix = " = np.array([";
 	const char* suffix = "])\n";
-	// Format .4g => 2.3412e-12\w, => 12 characters
-	const char char_buf_size = 12;
+	// Format .4g => "-2.34122435e-12,\w" => 17 characters
+	const char char_buf_size = 17;
 	char value[char_buf_size];
 	const size_t buf_size = char_buf_size*x_len;
 	if (program_count + buf_size > PROGRAM_CAPACITY) {
@@ -88,9 +122,9 @@ int declare_array(float* x, size_t x_len)
 	char* values = (char*) malloc(buf_size*sizeof(char));
 	for (size_t i = 0; i < x_len; i++) {
 		if (i == x_len - 1) {
-			sprintf(value, "%.4g", x[i]);
+			sprintf(value, "%.8g", x[i]);
 		} else{
-			sprintf(value, "%.4g, ", x[i]);
+			sprintf(value, "%.8g, ", x[i]);
 		}
 		strcat(values, value);
 	}
@@ -160,8 +194,6 @@ int _cpl_loglog(float* x, size_t len_x, float* y, size_t len_y, const char* kwar
 	append_cmd(epilog);
 	return _SUCCESS_;
 }
-#define cpl_plot(x, y, kwargs) _cpl_plot(x, ARRAY_LEN((x)), y, ARRAY_LEN((y)), kwargs)
-#define cpl_loglog(x, y, kwargs) _cpl_loglog(x, ARRAY_LEN((x)), y, ARRAY_LEN((y)), kwargs)
 
 void _cpl_fill_between(float* x, size_t len_x, float* y1, size_t len_y1, float* y2, size_t len_y2, const char* kwargs)
 {
@@ -199,7 +231,6 @@ void _cpl_fill_between(float* x, size_t len_x, float* y1, size_t len_y1, float* 
 	}
 	append_cmd(epilog);
 }
-#define cpl_fill_between(x, y1, y2, kwargs) _cpl_fill_between((x), ARRAY_LEN((x)), (y1), ARRAY_LEN((y1)), (y2), ARRAY_LEN((y2)), kwargs)
 
 void cpl_xlabel(const char* xlabel)
 {
@@ -262,7 +293,9 @@ void cpl_savefig(const char* filename)
 	char save_cmd[filename_size + 15];
 	sprintf(save_cmd, "plt.savefig('%s')\n", filename);
 	append_cmd(save_cmd);
-	print_program();
 	exec_program();
 	reset_program();
 }
+
+#endif // CPLOTLIB_IMPLEMENTATION
+#endif // CPLOTLIB_H
