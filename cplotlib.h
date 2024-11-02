@@ -35,7 +35,6 @@ CPLOTLIB_API void cpl_legend();
 #define _SUCCESS_ 0
 #define _ERROR_ 1
 
-
 // Program is a string that accumulates Python code
 #define PROGRAM_CAPACITY 10000
 char program[PROGRAM_CAPACITY];
@@ -53,7 +52,6 @@ const char* preamble = "\
 import numpy as np\n\
 import matplotlib.pyplot as plt\n\
 ";
-
 
 static inline void print_program() 
 {
@@ -93,6 +91,7 @@ static inline void reset_program()
 
 static inline char* get_array_ident(float* p)
 {
+	// Returns the identifier of the array pointed by `p`
 	for (size_t i = 0; i < array_count; i++) {
 		if (arrays[i].p == p) return arrays[i].ident;
 	}
@@ -141,6 +140,7 @@ int declare_array(float* x, size_t x_len)
 
 int _cpl_plot(float* x, size_t len_x, float* y, size_t len_y, const char* kwargs)
 {
+	// Compiles the command `plt.plot(x, y, kwargs)`
 	if (program_count == 0) append_cmd(preamble);
 	if (len_x != len_y) {
 		printf("ERROR: plotting arrays of different lengths.\n");
@@ -169,6 +169,7 @@ int _cpl_plot(float* x, size_t len_x, float* y, size_t len_y, const char* kwargs
 
 int _cpl_loglog(float* x, size_t len_x, float* y, size_t len_y, const char* kwargs)
 {
+	// Compiles the command `plt.loglog(x, y)`
 	if (program_count == 0) append_cmd(preamble);
 	if (len_x != len_y) {
 		printf("ERROR: plotting arrays of different lengths.\n");
@@ -197,6 +198,7 @@ int _cpl_loglog(float* x, size_t len_x, float* y, size_t len_y, const char* kwar
 
 void _cpl_fill_between(float* x, size_t len_x, float* y1, size_t len_y1, float* y2, size_t len_y2, const char* kwargs)
 {
+	// Compiles the command `plt.fill_between(x, y1, y2, **kwargs)`
 	const size_t kwargs_size = strlen(kwargs);
 	char epilog[kwargs_size + 50];
 
@@ -234,6 +236,7 @@ void _cpl_fill_between(float* x, size_t len_x, float* y1, size_t len_y1, float* 
 
 void cpl_xlabel(const char* xlabel)
 {
+	// Compiles the command `plt.xlabel(xlabel)`
 	const size_t xlabel_size = strlen(xlabel);
 	char xlabel_cmd[xlabel_size + 13];
 	sprintf(xlabel_cmd, "plt.xlabel('%s')\n", xlabel);
