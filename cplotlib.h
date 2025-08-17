@@ -4,205 +4,183 @@
 #include <Python.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdbool.h>
+#include <assert.h>
+
+#define NOB_IMPLEMENTATION
+#define NOB_STRIP_PREFIX
+#include "nob.h"
 
 #define CPLOTLIB_API
 
 #define CPL_ARRAY_LEN(x) sizeof((x))/sizeof((x)[0])
-CPLOTLIB_API static inline void print_program();
-CPLOTLIB_API void exec_program();
-CPLOTLIB_API static inline int append_cmd(const char* command);
-CPLOTLIB_API static inline void reset_program();
-CPLOTLIB_API static inline char* get_array_ident(float* p);
-CPLOTLIB_API int declare_array(float* x, size_t x_len);
-int _cpl_plot(float* x, size_t len_x, float* y, size_t len_y, const char* kwargs);
-int _cpl_loglog(float* x, size_t len_x, float* y, size_t len_y, const char* kwargs);
-void _cpl_fill_between(float* x, size_t len_x, float* y1, size_t len_y1, float* y2, size_t len_y2, const char* kwargs);
+CPLOTLIB_API static inline void cpl_print_program();
+CPLOTLIB_API void cpl_exec_program();
+CPLOTLIB_API static inline void cpl_reset_program();
+CPLOTLIB_API bool declare_array(double* x, size_t x_len);
+int _cpl_plot(double* x, size_t len_x, double* y, size_t len_y, const char* kwargs);
+int _cpl_scatter(double* x, size_t len_x, double* y, size_t len_y, const char* kwargs);
+int _cpl_loglog(double* x, size_t len_x, double* y, size_t len_y, const char* kwargs);
+void _cpl_fill_between(double* x, size_t len_x, double* y1, size_t len_y1, double* y2, size_t len_y2, const char* kwargs);
 #define cpl_plot(x, y, kwargs) _cpl_plot(x, CPL_ARRAY_LEN((x)), y, CPL_ARRAY_LEN((y)), kwargs);
+#define cpl_scatter(x, y, kwargs) _cpl_scatter(x, CPL_ARRAY_LEN((x)), y, CPL_ARRAY_LEN((y)), kwargs);
 #define cpl_loglog(x, y, kwargs) _cpl_loglog(x, CPL_ARRAY_LEN((x)), y, CPL_ARRAY_LEN((y)), kwargs);
 #define cpl_fill_between(x, y1, y2, kwargs) _cpl_fill_between((x), CPL_ARRAY_LEN((x)), (y1), CPL_ARRAY_LEN((y1)), (y2), CPL_ARRAY_LEN((y2)), kwargs)
 CPLOTLIB_API void cpl_xlabel(const char* xlabel);
 CPLOTLIB_API void cpl_ylabel(const char* ylabel);
 CPLOTLIB_API void cpl_title(const char* title);
-CPLOTLIB_API void cpl_xlim(float x1, float x2);
-CPLOTLIB_API void cpl_ylim(float y1, float y2);
+CPLOTLIB_API void cpl_xlim(double x1, double x2);
+CPLOTLIB_API void cpl_ylim(double y1, double y2);
 CPLOTLIB_API void cpl_show();
-CPLOTLIB_API void cpl_savefig();
+CPLOTLIB_API void cpl_savefig(const char *filename);
 CPLOTLIB_API void cpl_grid();
 CPLOTLIB_API void cpl_legend();
 
-#ifdef CPLOTLIB_IMPLEMENTATION
-
-#define _SUCCESS_ 0
-#define _ERROR_ 1
-
-// Program is a string that accumulates Python code
-#define PROGRAM_CAPACITY 10000
-char program[PROGRAM_CAPACITY];
-size_t program_count = 0;
+typedef struct {
+	double* p;
+	size_t id;
+} cpl_array;
 
 typedef struct {
-	float* p;
-	char ident[5];
-} cpl_array;
-#define ARRAY_CAPACITY 20
-cpl_array arrays[ARRAY_CAPACITY];
-size_t array_count;
+	cpl_array *items;
+	size_t count;
+	size_t capacity;
+} cpl_arrays;
+
+String_Builder program = {0};
+cpl_arrays arrays = {0};
 
 const char* preamble = "\
 import numpy as np\n\
 import matplotlib.pyplot as plt\n\
 ";
 
-static inline void print_program() 
+#ifdef CPLOTLIB_IMPLEMENTATION
+
+static inline void cpl_print_program() 
 {
-	// Prints the program for debug purposes
-	printf("%s\n", program);
+	printf("%*s\n", (int)program.count, program.items);
 }
 
-void exec_program()
+void cpl_exec_program()
 {
 	// Executes a string as a Python program
 	Py_Initialize();
-	PyRun_SimpleString(program);
+	PyRun_SimpleString(program.items);
 	Py_Finalize();
 }
 
-static inline int append_cmd(const char* command)
-{
-	// This function accumulates strings into `program`
-	const size_t cmd_len = strlen(command);
-	if (program_count + cmd_len > PROGRAM_CAPACITY) {
-		printf("ERROR: could not append string `%s` into the program.\n", command);
-		return _ERROR_;
-	}
-	strcat(program, command);
-	program_count += strlen(command);
-	return _SUCCESS_;
-}
-
-static inline void reset_program()
+static inline void cpl_reset_program()
 {
 	// Resets the program state to only the preamble
-	program[0] = '\0';
-	program_count = 0;
-	array_count = 0;
-	append_cmd(preamble);
+	program.count = 0;
+	arrays.count = 0;
+	sb_append_cstr(&program, preamble);
 }
 
-static inline char* get_array_ident(float* p)
-{
-	// Returns the identifier of the array pointed by `p`
-	for (size_t i = 0; i < array_count; i++) {
-		if (arrays[i].p == p) return arrays[i].ident;
+size_t get_array_id(double *x) {
+	for (size_t i = 0; i < arrays.count; i++) {
+		const cpl_array array = arrays.items[i];
+		if (array.p == x) return array.id;
 	}
-	return NULL;
+	return -1;
 }
 
-int declare_array(float* x, size_t x_len)
+bool declare_array(double* x, size_t x_len)
 {
-	// Constructs the command `ident = np.array([x[0], x[1], ...])`.
-	// This Python line declares a Numpy array from the values in your C array.
-	// Also appends the command into the program.
-	for (size_t i = 0; i < array_count; i++) {
-		float* p = arrays[i].p;
-		if (x == p) return _SUCCESS_;
+	// `arrays` is a global dynamic array storing the pointers known to the program
+	// If x is in `arrays`, then this function does nothing
+	// If x is not in `arrays`:
+	//     Constructs the command `x%i = np.array([x[0], x[1], ...])`. %i is the number of arrays in `arrays`
+	//     Appends the command into the program.
+	//     Appends the pointer into `arrays`.
+	for (size_t i = 0; i < arrays.count; i++) {
+		if (x == arrays.items[i].p) return true;
 	}
-	char ident[10];
-	sprintf(ident, "x%zu", array_count);
-	const char* prefix = " = np.array([";
-	const char* suffix = "])\n";
-	// Format .4g => "-2.34122435e-12,\w" => 17 characters
-	const char char_buf_size = 17;
-	char value[char_buf_size];
-	const size_t buf_size = char_buf_size*x_len;
-	if (program_count + buf_size > PROGRAM_CAPACITY) {
-		return _ERROR_;
-	}
-	char* values = (char*) malloc(buf_size*sizeof(char));
+	sb_appendf(&program, "x%zu = np.array([", arrays.count);
 	for (size_t i = 0; i < x_len; i++) {
-		if (i == x_len - 1) {
-			sprintf(value, "%.8g", x[i]);
-		} else{
-			sprintf(value, "%.8g, ", x[i]);
+		sb_appendf(&program, "%.8g", x[i]);
+		if (i < x_len - 1) {
+			sb_append_cstr(&program, ", ");
 		}
-		strcat(values, value);
 	}
-	append_cmd(ident);
-	append_cmd(prefix);
-	append_cmd(values);
-	append_cmd(suffix);
-	arrays[array_count].p = x;
-	strcpy(arrays[array_count].ident, ident);
-	array_count += 1;
-	// free(values);
-	return _SUCCESS_;
+	sb_append_cstr(&program, "])\n");	
+	cpl_array a = (cpl_array) {.p = x, .id = arrays.count};
+	da_append(&arrays, a);
+	return true;
 }
 
-int _cpl_plot(float* x, size_t len_x, float* y, size_t len_y, const char* kwargs)
+int _cpl_plot(double* x, size_t len_x, double* y, size_t len_y, const char* kwargs)
 {
 	// Compiles the command `plt.plot(x, y, kwargs)`
-	if (program_count == 0) append_cmd(preamble);
+	if (program.count == 0) sb_append_cstr(&program, preamble);
 	if (len_x != len_y) {
 		printf("ERROR: plotting arrays of different lengths.\n");
-		return _ERROR_;
+		return false;
 	}
 	
-	int error = declare_array(x, len_x);
-	if (error) {
-		printf("ERROR: could not allocate array into command.\n");
+	if (!declare_array(x, len_x)) {
+		printf("ERROR: could not allocate array into program.\n");
 		exit(1);
 	}
-	int error2 = declare_array(y, len_y);
-	if (error2) {
-		printf("ERROR: could not allocate array into command.\n");
-		exit(1);
-	}
-	const char* ident_x = get_array_ident(x);
-	const char* ident_y = get_array_ident(y);
 	
-	const size_t kwargs_size = strlen(kwargs);
-	char epilog[kwargs_size + 17];
-	sprintf(epilog, "plt.plot(%s, %s, %s)\n", ident_x, ident_y, kwargs);
-	append_cmd(epilog);
-	return _SUCCESS_;
+	if (!declare_array(y, len_y)) {
+		printf("ERROR: could not allocate array into program.\n");
+		exit(1);
+	}
+	
+	sb_appendf(&program, "plt.plot(x%zu, x%zu, %s)\n", get_array_id(x), get_array_id(y), kwargs);
+	return true;
 }
 
-int _cpl_loglog(float* x, size_t len_x, float* y, size_t len_y, const char* kwargs)
+int _cpl_scatter(double* x, size_t len_x, double* y, size_t len_y, const char* kwargs)
+{
+	// Compiles the command `plt.plot(x, y, kwargs)`
+	if (program.count == 0) sb_append_cstr(&program, preamble);
+	if (len_x != len_y) {
+		printf("ERROR: plotting arrays of different lengths.\n");
+		return false;
+	}
+	
+	if (!declare_array(x, len_x)) {
+		printf("ERROR: could not allocate array into program.\n");
+		exit(1);
+	}
+	
+	if (!declare_array(y, len_y)) {
+		printf("ERROR: could not allocate array into program.\n");
+		exit(1);
+	}
+	
+	sb_appendf(&program, "plt.scatter(x%zu, x%zu, %s)\n", get_array_id(x), get_array_id(y), kwargs);
+	return true;
+}
+
+int _cpl_loglog(double* x, size_t len_x, double* y, size_t len_y, const char* kwargs)
 {
 	// Compiles the command `plt.loglog(x, y)`
-	if (program_count == 0) append_cmd(preamble);
+	if (program.count == 0) sb_append_cstr(&program, preamble);
 	if (len_x != len_y) {
 		printf("ERROR: plotting arrays of different lengths.\n");
-		return _ERROR_;
+		return false;
 	}
 	
-	int error = declare_array(x, len_x);
-	if (error) {
-		printf("ERROR: could not allocate array into command.\n");
+	if (!declare_array(x, len_x)) {
+		printf("ERROR: could not allocate array into program.\n");
 		exit(1);
 	}
-	int error2 = declare_array(y, len_y);
-	if (error2) {
-		printf("ERROR: could not allocate array into command.\n");
+	if (!declare_array(y, len_y)) {
+		printf("ERROR: could not allocate array into program.\n");
 		exit(1);
 	}
-	const char* ident_x = get_array_ident(x);
-	const char* ident_y = get_array_ident(y);
 
-	const size_t kwargs_size = strlen(kwargs);
-	char epilog[kwargs_size + 17];
-	sprintf(epilog, "plt.loglog(%s, %s, %s)\n", ident_x, ident_y, kwargs);
-	append_cmd(epilog);
-	return _SUCCESS_;
+	sb_appendf(&program, "plt.loglog(x%zu, x%zu, %s)\n", get_array_id(x), get_array_id(y), kwargs);
+	return true;
 }
 
-void _cpl_fill_between(float* x, size_t len_x, float* y1, size_t len_y1, float* y2, size_t len_y2, const char* kwargs)
+void _cpl_fill_between(double* x, size_t len_x, double* y1, size_t len_y1, double* y2, size_t len_y2, const char* kwargs)
 {
 	// Compiles the command `plt.fill_between(x, y1, y2, **kwargs)`
-	const size_t kwargs_size = strlen(kwargs);
-	char epilog[kwargs_size + 50];
-
-	const char* ident_x = get_array_ident(x);
 	
 	if (len_y1 != len_y2) {
 		printf("ERROR: in fill_between, arrays must have the same length, but y1 has length %zu and y2 has length %zu\n", len_y1, len_y2);
@@ -210,94 +188,71 @@ void _cpl_fill_between(float* x, size_t len_x, float* y1, size_t len_y1, float* 
 	}
 
 	if (len_y1 == 1) {
-		sprintf(epilog, "plt.fill_between(%s, %f, %f, %s)\n", ident_x, *y1, *y2, kwargs);
+		sb_appendf(&program, "plt.fill_between(x%zu, %f, %f, %s)\n", get_array_id(x), *y1, *y2, kwargs);
 	} else {
 		if (len_y1 != len_x) {
 			printf("ERROR: in fill_between, if y1 and y2 are arrays, then all arrays must have the same length, but x has length %zu, y1 has length %zu and y2 has length %zu\n", len_x, len_y1, len_y2);
 			exit(1);
 		}
-		int error = declare_array(y1, len_y1);
-		if (error) {
-			printf("ERROR: could not allocate array into command.\n");
+		if (!declare_array(y1, len_y1)) {
+			printf("ERROR: could not allocate array into program.\n");
 			exit(1);
 		}
-		error = declare_array(y2, len_y2);
-		if (error) {
-			printf("ERROR: could not allocate array into command.\n");
+		if (!declare_array(y2, len_y2)) {
+			printf("ERROR: could not allocate array into program.\n");
 			exit(1);
 		}
-		const char* ident_y1 = get_array_ident(y1);
-		const char* ident_y2 = get_array_ident(y2);
 		
-		sprintf(epilog, "plt.fill_between(%s, %s, %s, %s)\n", ident_x, ident_y1, ident_y2, kwargs);
+		sb_appendf(&program, "plt.fill_between(x%zu, x%zu, x%zu, %s)\n", get_array_id(x), get_array_id(y1), get_array_id(y2), kwargs);
 	}
-	append_cmd(epilog);
 }
 
 void cpl_xlabel(const char* xlabel)
 {
-	// Compiles the command `plt.xlabel(xlabel)`
-	const size_t xlabel_size = strlen(xlabel);
-	char xlabel_cmd[xlabel_size + 13];
-	sprintf(xlabel_cmd, "plt.xlabel('%s')\n", xlabel);
-	append_cmd(xlabel_cmd);
+	sb_appendf(&program, "plt.xlabel(\"%s\")\n", xlabel);
 }
 
 void cpl_ylabel(const char* ylabel)
 {
-	const size_t ylabel_size = strlen(ylabel);
-	char ylabel_cmd[ylabel_size + 13];
-	sprintf(ylabel_cmd, "plt.ylabel('%s')\n", ylabel);
-	append_cmd(ylabel_cmd);
+	sb_appendf(&program, "plt.ylabel(\"%s\")\n", ylabel);
 }
 
 void cpl_title(const char* title)
 {
-	const size_t title_size = strlen(title);
-	char title_cmd[title_size + 13];
-	sprintf(title_cmd, "plt.title('%s')\n", title);
-	append_cmd(title_cmd);
+	sb_appendf(&program, "plt.title(\"%s\")\n", title);
 }
 
-void cpl_xlim(float x1, float x2)
+void cpl_xlim(double x1, double x2)
 {
-	char xlim_cmd[35];
-	sprintf(xlim_cmd, "plt.xlim([%f, %f])\n", x1, x2);
-	append_cmd(xlim_cmd);
+	sb_appendf(&program, "plt.xlim([%f, %f])\n", x1, x2);
 }
 
-void cpl_ylim(float y1, float y2)
+void cpl_ylim(double y1, double y2)
 {
-	char ylim_cmd[35];
-	sprintf(ylim_cmd, "plt.ylim([%f, %f])\n", y1, y2);
-	append_cmd(ylim_cmd);
+	sb_appendf(&program, "plt.ylim([%f, %f])\n", y1, y2);
 }
 
 void cpl_show()
 {
-	append_cmd("plt.show()\n");
-	exec_program();
-	reset_program();
+	sb_append_cstr(&program, "plt.show()\n");
+	cpl_exec_program();
+	cpl_reset_program();
 }
 
 void cpl_legend()
 {
-	append_cmd("plt.legend()\n");
+	sb_append_cstr(&program, "plt.legend()\n");
 }
 
 void cpl_grid()
 {
-	append_cmd("plt.grid()\n");
+	sb_append_cstr(&program, "plt.grid()\n");
 }
 
 void cpl_savefig(const char* filename)
 {
-	const size_t filename_size = strlen(filename);
-	char save_cmd[filename_size + 15];
-	sprintf(save_cmd, "plt.savefig('%s')\n", filename);
-	append_cmd(save_cmd);
-	exec_program();
-	reset_program();
+	sb_appendf(&program, "plt.savefig(\"%s\")\n", filename);
+	cpl_exec_program();
 }
 
 #endif // CPLOTLIB_IMPLEMENTATION

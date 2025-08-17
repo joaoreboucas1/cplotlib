@@ -7,12 +7,12 @@
 int main()
 {
     const size_t N = 200;
-    float x[N];
-    float y[N];
-    float z[N];
-    const float x_min = 1.0f;
-    const float x_max = 40.0f;
-    const float dx = (x_max - x_min)/N;
+    double x[N];
+    double y[N];
+    double z[N];
+    const double x_min = 1.0f;
+    const double x_max = 40.0f;
+    const double dx = (x_max - x_min)/N;
     for (size_t i = 0; i < N; i++) {
         x[i] = x_min + i*dx;
         y[i] = x[i]*x[i];
@@ -22,8 +22,8 @@ int main()
     cpl_loglog(x, z, "color='tab:blue', ls='--', label='Data 2'");
     cpl_xlabel("$x$");
     cpl_ylabel("$y$");
-    float y_1[1] = {1.0};
-    float y_2[1] = {10.0};
+    double y_1[1] = {1.0};
+    double y_2[1] = {10.0};
     cpl_fill_between(x, y_1, y_2, "color='gray', alpha=0.6");
     cpl_fill_between(x, y, z, "color='tab:red', alpha=0.4");
     cpl_title("Hello from C!");
