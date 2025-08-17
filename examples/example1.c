@@ -32,6 +32,6 @@ int main()
     cpl_legend();
     cpl_grid();
     cpl_savefig("plot.pdf");
-	
+	cpl_exec_program();
     return 0;
 }

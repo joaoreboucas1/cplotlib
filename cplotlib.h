@@ -64,7 +64,6 @@ static inline void cpl_print_program()
 
 void cpl_exec_program()
 {
-	// Executes a string as a Python program
 	Py_Initialize();
 	PyRun_SimpleString(program.items);
 	Py_Finalize();
@@ -235,8 +234,6 @@ void cpl_ylim(double y1, double y2)
 void cpl_show()
 {
 	sb_append_cstr(&program, "plt.show()\n");
-	cpl_exec_program();
-	cpl_reset_program();
 }
 
 void cpl_legend()
@@ -252,7 +249,6 @@ void cpl_grid()
 void cpl_savefig(const char* filename)
 {
 	sb_appendf(&program, "plt.savefig(\"%s\")\n", filename);
-	cpl_exec_program();
 }
 
 #endif // CPLOTLIB_IMPLEMENTATION
